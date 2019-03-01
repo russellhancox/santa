@@ -30,8 +30,6 @@
 #include <cstdlib>
 #include <cstring>
 #define panic(args...) printf(args); printf("\n"); abort()
-#define IOMallocAligned(sz, alignment) malloc(sz);
-#define IOFreeAligned(addr, sz) free(addr)
 #define OSTestAndSet OSAtomicTestAndSet
 #define OSTestAndClear(bit, addr) OSAtomicTestAndClear(bit, addr) == 0
 #define OSIncrementAtomic(addr) OSAtomicIncrement64((volatile int64_t *)addr)
@@ -80,8 +78,7 @@ template<typename KeyT, typename ValueT> class SantaCache {
     max_size_ = maximum_size;
     bucket_count_ = (1 << (32 - __builtin_clz((((uint32_t)max_size_ / per_bucket) - 1) ?: 1)));
     if (unlikely(bucket_count_ > UINT32_MAX)) bucket_count_ = UINT32_MAX;
-    buckets_ = (struct bucket *)IOMallocAligned(bucket_count_ * sizeof(struct bucket), 2);
-    bzero(buckets_, bucket_count_ * sizeof(struct bucket));
+    buckets_ = new struct bucket[bucket_count_];
   }
 
   /**
@@ -89,7 +86,7 @@ template<typename KeyT, typename ValueT> class SantaCache {
   */
   ~SantaCache() {
     clear();
-    IOFreeAligned(buckets_, bucket_count_ * sizeof(struct bucket));
+    delete[] buckets_;
   }
 
   /**
@@ -97,17 +94,17 @@ template<typename KeyT, typename ValueT> class SantaCache {
   */
   ValueT get(KeyT key) {
     struct bucket *bucket = &buckets_[hash(key)];
-    lock(bucket);
+    bucket->lock();
     struct entry *entry = (struct entry *)((uintptr_t)bucket->head - 1);
     while (entry != nullptr) {
       if (entry->key == key) {
         ValueT val = entry->value;
-        unlock(bucket);
+        bucket->unlock();
         return val;
       }
       entry = entry->next;
     }
-    unlock(bucket);
+    bucket->unlock();
     return zero_;
   }
 
@@ -160,13 +157,13 @@ template<typename KeyT, typename ValueT> class SantaCache {
       // We grab the lock so nothing can use this bucket while we're erasing it
       // and never release it. It'll be 'released' when the bzero call happens
       // at the end of this function.
-      lock(bucket);
+      bucket->lock();
 
       // Free the bucket's entries, if there are any.
       struct entry *entry = (struct entry *)((uintptr_t)bucket->head - 1);
       while (entry != nullptr) {
         struct entry *next_entry = entry->next;
-        IOFreeAligned(entry, sizeof(struct entry));
+        delete entry;
         entry = next_entry;
       }
     }
@@ -210,13 +207,13 @@ template<typename KeyT, typename ValueT> class SantaCache {
     for (uint16_t i = 0; i < size; ++i) {
       uint16_t count = 0;
       struct bucket *bucket = &buckets_[start++];
-      lock(bucket);
+      bucket->lock();
       struct entry *entry = (struct entry *)((uintptr_t)bucket->head - 1);
       while (entry != nullptr) {
         if (entry->value != zero_) ++count;
         entry = entry->next;
       }
-      unlock(bucket);
+      bucket->unlock();
       per_bucket_counts[i] = count;
     }
 
@@ -226,16 +223,29 @@ template<typename KeyT, typename ValueT> class SantaCache {
 
  private:
   struct entry {
-    KeyT key;
-    ValueT value;
-    struct entry *next;
+    KeyT key = {};
+    ValueT value = {};
+    struct entry *next = nullptr;
   };
 
   struct bucket {
     // The least significant bit of this pointer is always 0 (due to alignment),
     // so we utilize that bit as the lock for the bucket.
-    struct entry *head;
+    struct entry *head = nullptr;
+
+    // Lock this bucket. Will loop until it is successfully locked.
+    void lock() {
+      while (OSTestAndSet(7, (volatile uint8_t *)&head));
+    }
+
+    // Unlock this bucket. Will panic if the bucket is not locked.
+    void unlock() {
+      if (unlikely(OSTestAndClear(7, (volatile uint8_t *)&head))) {
+        panic("SantaCache::bucket::unlock(): Tried to unlock an unlocked lock");
+      }
+    }
   };
+
 
   /**
     Set an element in the cache.
@@ -255,7 +265,7 @@ template<typename KeyT, typename ValueT> class SantaCache {
   bool set(const KeyT& key, const ValueT& value,
            const ValueT& previous_value, bool has_prev_value) {
     struct bucket *bucket = &buckets_[hash(key)];
-    lock(bucket);
+    bucket->lock();
     struct entry *entry = (struct entry *)((uintptr_t)bucket->head - 1);
     struct entry *previous_entry = nullptr;
     while (entry != nullptr) {
@@ -263,7 +273,7 @@ template<typename KeyT, typename ValueT> class SantaCache {
         ValueT existing_value = entry->value;
 
         if (has_prev_value && previous_value != existing_value) {
-          unlock(bucket);
+          bucket->unlock();
           return false;
         }
 
@@ -275,11 +285,11 @@ template<typename KeyT, typename ValueT> class SantaCache {
           } else {
             bucket->head = (struct entry *)((uintptr_t)entry->next + 1);
           }
-          IOFreeAligned(entry, sizeof(struct entry));
+          delete entry;
           OSDecrementAtomic(&count_);
         }
 
-        unlock(bucket);
+        bucket->unlock();
         return true;
       }
       previous_entry = entry;
@@ -290,51 +300,34 @@ template<typename KeyT, typename ValueT> class SantaCache {
     // so we don't need to do anything else. Alternatively, if has_prev_value
     // is true and is not zero_ we don't want to set a value.
     if (value == zero_ || (has_prev_value && previous_value != zero_)) {
-      unlock(bucket);
+      bucket->unlock();
       return false;
     }
 
     // Check that adding this new item won't take the cache
     // over its maximum size.
     if (count_ + 1 > max_size_) {
-      unlock(bucket);
-      lock(&clear_bucket_);
+      bucket->unlock();
+      clear_bucket_.lock();
       // Check again in case clear has already run while waiting for lock
       if (count_ + 1 > max_size_) {
         clear();
       }
-      lock(bucket);
-      unlock(&clear_bucket_);
+      bucket->lock();
+      clear_bucket_.unlock();
     }
 
     // Allocate a new entry, set the key and value, then put this new entry at
     // the head of this bucket's linked list.
-    struct entry *new_entry = (struct entry *)IOMallocAligned(sizeof(struct entry), 2);
-    bzero(new_entry, sizeof(struct entry));
+    struct entry *new_entry = new struct entry;
     new_entry->key = key;
     new_entry->value = value;
     new_entry->next = (struct entry *)((uintptr_t)bucket->head - 1);
     bucket->head = (struct entry *)((uintptr_t)new_entry + 1);
     OSIncrementAtomic(&count_);
 
-    unlock(bucket);
+    bucket->unlock();
     return true;
-  }
-
-  /**
-    Lock a bucket. Spins until the lock is acquired.
-  */
-  inline void lock(struct bucket *bucket) const {
-    while (OSTestAndSet(7, (volatile uint8_t *)&bucket->head));
-  }
-
-  /**
-    Unlock a bucket. Panics if the lock wasn't locked.
-  */
-  inline void unlock(struct bucket *bucket) const {
-    if (unlikely(OSTestAndClear(7, (volatile uint8_t *)&bucket->head))) {
-      panic("SantaCache::unlock(): Tried to unlock an unlocked lock");
-    }
   }
 
   uint64_t count_ = 0;
