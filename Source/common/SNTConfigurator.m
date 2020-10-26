@@ -16,6 +16,7 @@
 
 #include <sys/stat.h>
 
+#import "Source/common/SNTRule.h"
 #import "Source/common/SNTStrengthify.h"
 #import "Source/common/SNTSystemInfo.h"
 
@@ -84,6 +85,7 @@ static NSString *const kEnableSysxCache = @"EnableSysxCache";
 static NSString *const kEnableForkAndExitLogging = @"EnableForkAndExitLogging";
 static NSString *const kIgnoreOtherEndpointSecurityClients = @"IgnoreOtherEndpointSecurityClients";
 static NSString *const kEnableDebugLogging = @"EnableDebugLogging";
+static NSString *const kMDMRulesKey = @"Rules";
 
 static NSString *const kEnableBackwardsCompatibleContentEncoding = @"EnableBackwardsCompatibleContentEncoding";
 
@@ -163,6 +165,7 @@ static NSString *const kSyncCleanRequired = @"SyncCleanRequired";
       kIgnoreOtherEndpointSecurityClients : number,
       kEnableDebugLogging : number,
       kEnableBackwardsCompatibleContentEncoding : number,
+      kMDMRulesKey : array,
     };
     _defaults = [NSUserDefaults standardUserDefaults];
     [_defaults addSuiteNamed:@"com.google.santa"];
@@ -612,6 +615,33 @@ static NSString *const kSyncCleanRequired = @"SyncCleanRequired";
 - (BOOL)enableBackwardsCompatibleContentEncoding {
   NSNumber *number = self.configState[kEnableBackwardsCompatibleContentEncoding];
   return number ? [number boolValue] : NO;
+}
+
+- (NSArray<SNTRule *> *)mdmRules {
+  NSArray *a = self.configState[kMDMRulesKey];
+  NSMutableArray *rules = [NSMutableArray arrayWithCapacity:a.count];
+  for (id rule in a) {
+    if (![rule isKindOfClass:[NSDictionary class]]) continue;
+
+    NSDictionary *r = (NSDictionary *)rule;
+
+    NSString *shasum = r[@"shasum"];
+    if (![shasum isKindOfClass:[NSString class]] || shasum.length < 1) continue;
+
+    NSNumber *state = r[@"state"];
+    if (![state isKindOfClass:[NSNumber class]]) continue;
+
+    NSNumber *type = r[@"type"];
+    if (![type isKindOfClass:[NSNumber class]]) continue;
+
+    NSString *customMsg = r[@"custommsg"];
+
+    [rules addObject:[[SNTRule alloc] initWithShasum:shasum
+                                               state:(SNTRuleState)[state intValue]
+                                                type:(SNTRuleType)[type intValue]
+                                           customMsg:customMsg]];
+  }
+  return rules;
 }
 
 #pragma mark Private

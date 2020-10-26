@@ -16,6 +16,8 @@
 
 #import "Source/common/SNTCommonEnums.h"
 
+@class SNTRule;
+
 ///
 ///  Singleton that provides an interface for managing configuration values on disk
 ///  @note This class is designed as a singleton but that is not strictly enforced.
@@ -93,27 +95,27 @@
 ///  take up 1 node. For example these 3 prefixes all have a common prefix of "/private/".
 ///  They will only take up 21 nodes instead of 39.
 ///
-///  "/private/tmp/"
-///  "/private/var/"
-///  "/private/new/"
-///
-///                                                              -> [t] -> [m] -> [p] -> [/]
-///
-///  [/] -> [p] -> [r] -> [i] -> [v] -> [a] -> [t] -> [e] -> [/] -> [v] -> [a] -> [r] -> [/]
-///
-///                                                              -> [n] -> [e] -> [w] -> [/]
-///
-///  Prefixes with Unicode characters work similarly. Assuming a UTF-8 encoding these two prefixes
-///  are actually the same for the first 3 nodes. They take up 7 nodes instead of 10.
-///
-///  "/🤘"
-///  "/🖖"
-///
-///                          -> [0xa4] -> [0x98]
-///
-///  [/] -> [0xf0] -> [0x9f]
-///
-///                          -> [0x96] -> [0x96]
+//  "/private/tmp/"
+//  "/private/var/"
+//  "/private/new/"
+//
+//                                                              -> [t] -> [m] -> [p] -> [/]
+//
+//  [/] -> [p] -> [r] -> [i] -> [v] -> [a] -> [t] -> [e] -> [/] -> [v] -> [a] -> [r] -> [/]
+//
+//                                                              -> [n] -> [e] -> [w] -> [/]
+//
+//  Prefixes with Unicode characters work similarly. Assuming a UTF-8 encoding these two prefixes
+//  are actually the same for the first 3 nodes. They take up 7 nodes instead of 10.
+//
+//  "/🤘"
+//  "/🖖"
+//
+//                          -> [0xa4] -> [0x98]
+//
+//  [/] -> [0xf0] -> [0x9f]
+//
+//                          -> [0x96] -> [0x96]
 ///
 ///  To disable file change logging completely add "/".
 ///  TODO(bur): Make this default if no FileChangesRegex is set.
@@ -182,6 +184,28 @@
 ///
 @property(readonly, nonatomic) BOOL enableSysxCache;
 
+///
+///  If true, forks and exits will be logged. Defaults to false.
+///
+@property(readonly, nonatomic) BOOL enableForkAndExitLogging;
+
+///
+///  If true, ignore actions from other endpoint security clients. Defaults to false. This only
+///  applies when running as a sysx.
+///
+@property(readonly, nonatomic) BOOL ignoreOtherEndpointSecurityClients;
+
+///
+///  If true, debug logging will be enabled for all Santa components. Defaults to false.
+///  Passing --debug as an executable argument will enable debug logging for that specific component.
+///
+@property(readonly, nonatomic) BOOL enableDebugLogging;
+
+///
+///  The set of rules provided by a configuration profile.
+///
+@property(readonly, nonatomic) NSArray<SNTRule *> *mdmRules;
+
 #pragma mark - GUI Settings
 
 ///
@@ -197,12 +221,12 @@
 ///  This property contains a kind of format string to be turned into the URL to send them to.
 ///  The following sequences will be replaced in the final URL:
 ///
-///  %file_sha%    -- SHA-256 of the file that was blocked.
-///  %machine_id%  -- ID of the machine.
-///  %username%    -- executing user.
-///  %serial%      -- System's serial number.
-///  %uuid%        -- System's UUID.
-///  %hostname%    -- System's full hostname.
+//  %file_sha%    -- SHA-256 of the file that was blocked.
+//  %machine_id%  -- ID of the machine.
+//  %username%    -- executing user.
+//  %serial%      -- System's serial number.
+//  %uuid%        -- System's UUID.
+//  %hostname%    -- System's full hostname.
 ///
 ///  @note: This is not an NSURL because the format-string parsing is done elsewhere.
 ///
@@ -278,14 +302,10 @@
 ///
 @property BOOL enableBundles;
 
-#pragma mark Transitive Allowlist Settings
-
 ///
-///  If YES, binaries marked with SNTRuleStateAllowCompiler rules are allowed to transitively
-///  allow any executables that they produce.  If NO, SNTRuleStateAllowCompiler rules are
-///  interpreted as if they were simply SNTRuleStateAllow rules.  Defaults to NO.
+///  Clear the sync server configuration from the effective configuration.
 ///
-@property BOOL enableTransitiveRules;
+- (void)clearSyncState;
 
 #pragma mark Server Auth Settings
 
@@ -324,22 +344,16 @@
 ///
 @property(readonly, nonatomic) NSString *syncClientAuthCertificateIssuer;
 
-///
-///  If true, forks and exits will be logged. Defaults to false.
-///
-@property(readonly, nonatomic) BOOL enableForkAndExitLogging;
+#pragma mark Transitive Allowlist Settings
 
 ///
-///  If true, ignore actions from other endpoint security clients. Defaults to false. This only
-///  applies when running as a sysx.
+///  If YES, binaries marked with SNTRuleStateAllowCompiler rules are allowed to transitively
+///  allow any executables that they produce.  If NO, SNTRuleStateAllowCompiler rules are
+///  interpreted as if they were simply SNTRuleStateAllow rules.  Defaults to NO.
 ///
-@property(readonly, nonatomic) BOOL ignoreOtherEndpointSecurityClients;
+@property BOOL enableTransitiveRules;
 
-///
-///  If true, debug logging will be enabled for all Santa components. Defaults to false.
-///  Passing --debug as an executable argument will enable debug logging for that specific component.
-///
-@property(readonly, nonatomic) BOOL enableDebugLogging;
+#pragma mark Singleton
 
 ///
 ///  If true, compressed requests from "santactl sync" will set "Content-Encoding" to "zlib"
@@ -353,10 +367,5 @@
 ///  Retrieve an initialized singleton configurator object using the default file path.
 ///
 + (instancetype)configurator;
-
-///
-///  Clear the sync server configuration from the effective configuration.
-///
-- (void)clearSyncState;
 
 @end
