@@ -80,7 +80,7 @@ IOReturn SNTPrefixTree::AddPrefix(const char *prefix, uint64_t *node_count) {
     if (node->isPrefix) break;
 
     // Only process a byte at a time.
-    uint8_t value = prefix[i];
+    uint8_t value = (uint8_t)prefix[i];
 
     // Create the child if it does not exist.
     if (!node->children[value]) {
@@ -92,7 +92,7 @@ IOReturn SNTPrefixTree::AddPrefix(const char *prefix, uint64_t *node_count) {
       }
 
       // Is there enough room for the rest of the prefix?
-      if ((node_count_ + (len - i)) > max_nodes_) {
+      if ((node_count_ + (len - (size_t)i)) > max_nodes_) {
         LOGE("Prefix tree is full, can not add: %s", prefix);
 
         if (node_count) *node_count = node_count_;
