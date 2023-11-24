@@ -152,6 +152,7 @@
     databaseRuleCounts:([OCMArg invokeBlockWithArgs:OCMOCK_VALUE(ruleCounts), nil])]);
   OCMStub([self.daemonConnRop
     syncTypeRequired:([OCMArg invokeBlockWithArgs:OCMOCK_VALUE(SNTSyncTypeNormal), nil])]);
+  OCMStub([self.daemonConnRop databaseRulesHash:([OCMArg invokeBlockWithArgs:@"the-hash", nil])]);
   OCMStub([self.daemonConnRop
     clientMode:([OCMArg invokeBlockWithArgs:OCMOCK_VALUE(SNTClientModeMonitor), nil])]);
 }
@@ -541,6 +542,23 @@
   [sut sync];
 
   XCTAssertEqual(self.syncState.clientMode, SNTClientModeLockdown);
+}
+
+- (void)testPreflightRulesHash {
+  SNTSyncPreflight *sut = [[SNTSyncPreflight alloc] initWithState:self.syncState];
+
+  OCMStub([self.daemonConnRop databaseRulesHash:([OCMArg invokeBlockWithArgs:@"rules-hash", nil])]);
+
+  [self stubRequestBody:nil
+               response:nil
+                  error:nil
+          validateBlock:^BOOL(NSURLRequest *req) {
+            NSDictionary *requestDict = [self dictFromRequest:req];
+            XCTAssertEqualObjects(requestDict[kRulesHash], @"rules-hash");
+            return YES;
+          }];
+
+  [sut sync];
 }
 
 #pragma mark - SNTSyncEventUpload Tests

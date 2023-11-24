@@ -13,6 +13,8 @@
 ///    limitations under the License.
 
 #import "Source/common/SNTRule.h"
+#include <CommonCrypto/CommonDigest.h>
+#include <Foundation/Foundation.h>
 
 #include <CommonCrypto/CommonCrypto.h>
 #include <Kernel/kern/cs_blobs.h>
@@ -304,6 +306,27 @@ static const NSUInteger kExpectedTeamIDLength = 10;
 
 - (void)resetTimestamp {
   self.timestamp = (NSUInteger)[[NSDate date] timeIntervalSinceReferenceDate];
+}
+
+- (NSString *)digest {
+  NSString *ruleDigestFormat = [[NSString alloc]
+    initWithFormat:@"%@:%ld:%ld:%lu", self.identifier, self.state, self.type, self.timestamp];
+  NSData *ruleData = [ruleDigestFormat dataUsingEncoding:NSUTF8StringEncoding];
+
+  unsigned char digest[CC_SHA256_DIGEST_LENGTH];
+  CC_SHA256(ruleData.bytes, (CC_LONG)ruleData.length, (unsigned char *)&digest);
+
+  NSString *const SHA256FormatString =
+    @"%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x"
+     "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x";
+
+  return [[NSString alloc]
+    initWithFormat:SHA256FormatString, digest[0], digest[1], digest[2], digest[3], digest[4],
+                   digest[5], digest[6], digest[7], digest[8], digest[9], digest[10], digest[11],
+                   digest[12], digest[13], digest[14], digest[15], digest[16], digest[17],
+                   digest[18], digest[19], digest[20], digest[21], digest[22], digest[23],
+                   digest[24], digest[25], digest[26], digest[27], digest[28], digest[29],
+                   digest[30], digest[31]];
 }
 
 @end

@@ -24,6 +24,7 @@ NSString *const kOSVer = @"os_version";
 NSString *const kOSBuild = @"os_build";
 NSString *const kModelIdentifier = @"model_identifier";
 NSString *const kPrimaryUser = @"primary_user";
+NSString *const kRulesHash = @"rules_hash";
 NSString *const kRequestCleanSync = @"request_clean_sync";
 NSString *const kBatchSize = @"batch_size";
 NSString *const kUploadLogsURL = @"upload_logs_url";

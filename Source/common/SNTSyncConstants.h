@@ -24,6 +24,7 @@ extern NSString *const kOSVer;
 extern NSString *const kOSBuild;
 extern NSString *const kModelIdentifier;
 extern NSString *const kPrimaryUser;
+extern NSString *const kRulesHash;
 extern NSString *const kRequestCleanSync;
 extern NSString *const kBatchSize;
 extern NSString *const kUploadLogsURL;

@@ -51,6 +51,8 @@ message PreflightRequest {
   uint32 teamid_rule_count = 15;
   uint32 signingid_rule_count = 16;
   uint32 cdhash_rule_count = 17;
+
+  string rules_hash = 18;
 }
 
 message PreflightResponse {
@@ -262,6 +264,7 @@ message RuleDownloadResponse {
 message PostflightRequest {
   uint64 rules_received = 1;
   uint64 rules_processed = 2;
+  string rules_hash = 3;
 }
 
 message PostflightResponse { }

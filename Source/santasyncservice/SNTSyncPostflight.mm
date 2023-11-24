@@ -37,6 +37,10 @@ namespace pbv1 = ::santa::sync::v1;
   req->set_rules_received(self.syncState.rulesReceived);
   req->set_rules_processed(self.syncState.rulesProcessed);
 
+  [rop databaseRulesHash:^(NSString *hash) {
+    req->set_rules_hash(NSStringToUTF8String(hash));
+  }];
+
   ::pbv1::PostflightResponse response;
   [self performRequest:[self requestWithMessage:req] intoMessage:&response timeout:30];
 
