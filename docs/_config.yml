@@ -11,6 +11,11 @@ gh_edit_link_text: "Edit this page on GitHub"
 gh_edit_repository: "https://github.com/google/santa"
 gh_edit_branch: "main"
 
+callouts:
+  warning:
+    title: Warning
+    color: red
+
 plugins:
     - jekyll-redirect-from
 

@@ -34,6 +34,7 @@ The following pages provide an overview of how Santa accomplishes authorization 
 
 * [Getting Started](deployment/getting-started.md): A quick guide to setting up your deployment.
 * [Configuration](deployment/configuration.md): The local and sync server configuration options, along with example needed mobileconfig files.
+* [Config Generator](deployment/config-generator.md): The local and sync server configuration options, along with example needed mobileconfig files.
 * [File Access Authorization](deployment/file-access-auth.md): Guide to enabling the feature and details about its configuration and operation.
 * [Sync Servers](deployment/sync-servers.md): A list of open-source sync servers.
 * [Troubleshooting](deployment/troubleshooting.md): How to troubleshoot issues with your Santa deployment.
