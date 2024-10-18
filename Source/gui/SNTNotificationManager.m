@@ -123,8 +123,7 @@ static NSString *const silencedNotificationsKey = @"SilencedNotifications";
         case NSOrderedDescending:
           LOGI(@"Notification silence: silence has expired, deleting");
           [self updateSilenceDate:nil forHash:messageHash];
-        default:
-          return;
+        default: return;
       }
     }
 

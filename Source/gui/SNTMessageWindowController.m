@@ -33,7 +33,8 @@
   if (!self.delegate) return;
 
   if (self.silenceFutureNotificationsPeriod) {
-    [self.delegate windowDidCloseSilenceHash:[self messageHash] withInterval:self.silenceFutureNotificationsPeriod];
+    [self.delegate windowDidCloseSilenceHash:[self messageHash]
+                                withInterval:self.silenceFutureNotificationsPeriod];
   } else {
     [self.delegate windowDidCloseSilenceHash:nil withInterval:0];
   }
