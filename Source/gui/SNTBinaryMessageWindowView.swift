@@ -28,7 +28,7 @@ let MAX_BUTTON_AREA_WIDTH = 300.0
                                       event: SNTStoredEvent,
                                       customMsg: NSString?,
                                       customURL: NSString?,
-                                      uiStateCallback: ((Bool) -> Void)?) -> NSViewController {
+                                      uiStateCallback: ((TimeInterval) -> Void)?) -> NSViewController {
     return NSHostingController(rootView:SNTBinaryMessageWindowView(
       window:window,
       event:event,
@@ -227,11 +227,26 @@ struct SNTBinaryMessageWindowView: View {
   let event: SNTStoredEvent?
   let customMsg: NSString?
   let customURL: NSString?
-  let uiStateCallback: ((Bool) -> Void)?
+  let uiStateCallback: ((TimeInterval) -> Void)?
 
   let c = SNTConfigurator()
 
   @State public var preventFutureNotifications = false
+
+  let preventNotificationPeriods: [TimeInterval] = [86400, 604800, 2592000]
+  @State public var preventFutureNotificationPeriod: TimeInterval = 0
+  let dateFormatter = DateComponentsFormatter()
+
+  init(window: NSWindow, event: SNTStoredEvent?, customMsg: NSString?, customURL: NSString?, uiStateCallback: ((TimeInterval) -> Void)?) {
+    self.window = window
+    self.event = event
+    self.customMsg = customMsg
+    self.customURL = customURL
+    self.uiStateCallback = uiStateCallback
+
+    dateFormatter.unitsStyle = .spellOut
+    dateFormatter.allowedUnits = [.hour, .day, .month]
+  }
 
   var body: some View {
     VStack(spacing:15.0) {
@@ -250,8 +265,34 @@ struct SNTBinaryMessageWindowView: View {
 
       SNTBinaryMessageEventView(e: event!, customURL: customURL)
 
-      Toggle(isOn: $preventFutureNotifications) {
-        Text("Prevent future notifications for this application for a day").font(Font.system(size: 11.0));
+      // Create a wrapper binding around $preventFutureNotifications so that we can automatically
+      // select the first entry in the drop-down picker if the checkbox is checked.
+      let checked = Binding<Bool>(get: { return self.preventFutureNotifications }, set: {
+        self.preventFutureNotifications = $0
+        if self.preventFutureNotifications && self.preventFutureNotificationPeriod == 0 {
+          self.preventFutureNotificationPeriod = preventNotificationPeriods[0]
+        }
+      })
+
+      // Create a wrapper binding around $preventFutureNotificationsPeriod so that we can automatically
+      // check the checkbox if the user has selected a period for the first time.
+      let pi = Binding<TimeInterval>(get: { return self.preventFutureNotificationPeriod }, set: {
+        if self.preventFutureNotificationPeriod == 0 {
+          self.preventFutureNotifications = true
+        }
+        self.preventFutureNotificationPeriod = $0
+      })
+
+      Toggle(isOn: checked) {
+        HStack {
+          Text("Prevent future notifications for this application for ").font(Font.system(size: 11.0));
+          Picker("", selection: pi) {
+            ForEach(preventNotificationPeriods, id: \.self) { period in 
+              let text = dateFormatter.string(from: period) ?? "unknown"
+              Text(text).font(Font.system(size: 11.0))
+            }
+          }.fixedSize()
+        }
       }
 
       HStack(spacing:15) {
@@ -282,7 +323,11 @@ struct SNTBinaryMessageWindowView: View {
 
   func openButton() {
     if let callback = uiStateCallback {
-      callback(self.preventFutureNotifications)
+      if self.preventFutureNotifications {
+        callback(self.preventFutureNotificationPeriod)
+      } else {
+        callback(0)
+      }
     }
 
     let url = SNTBlockMessage.eventDetailURL(for:event, customURL:customURL as String?)
@@ -294,7 +339,11 @@ struct SNTBinaryMessageWindowView: View {
 
   func dismissButton() {
     if let callback = uiStateCallback {
-      callback(self.preventFutureNotifications)
+      if self.preventFutureNotifications {
+        callback(self.preventFutureNotificationPeriod)
+      } else {
+        callback(0)
+      }
     }
     window?.close()
   }
